@@ -1,0 +1,16 @@
+
+# --- Python --- 
+__pycache__/ 
+
+# --- Virtual environment --- 
+.venv/
+.venv_dml/
+venv_11/
+
+# --- IDE / Editor settings --- 
+
+.idea/ 
+
+# -- Loss Plots / Weights ---
+*.png
+*.pth
