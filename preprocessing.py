@@ -4,15 +4,16 @@ from torchvision import transforms
 from transformers import CLIPTokenizer, CLIPTextModel
 from COCODataset import COCODataset
 
-COCO_ROOT = "coco2014"
+IMAGES = "coco2014/images"
+CAPTIONS = "coco2014/annotations"
 
-TRAIN_IMAGES = f"{COCO_ROOT}/images/train2014"
-VAL_IMAGES   = f"{COCO_ROOT}/images/val2014"
+TRAIN_IMAGES = f"{IMAGES}/train2014"
+VAL_IMAGES   = f"{IMAGES}/val2014"
 
-TRAIN_CAPTIONS = f"{COCO_ROOT}/annotations/captions_train2014.json"
-VAL_CAPTIONS   = f"{COCO_ROOT}/annotations/captions_val2014.json"
+TRAIN_CAPTIONS = f"{CAPTIONS}/captions_train2014.json"
+VAL_CAPTIONS   = f"{CAPTIONS}/captions_val2014.json"
 
-CACHE_DIR = "cache"
+CACHE_DIR = "cached_pairs"
 os.makedirs(CACHE_DIR, exist_ok=True)
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -62,14 +63,14 @@ def build_cache(dataset, split_name):
 if __name__ == "__main__":
     print("Loading COCO datasets with your folder structure...")
 
-    train_ds = COCODataset(TRAIN_IMAGES, TRAIN_CAPTIONS, transform)
-    val_ds   = COCODataset(VAL_IMAGES,   VAL_CAPTIONS,   transform)
+    train_dataset = COCODataset(TRAIN_IMAGES, TRAIN_CAPTIONS, transform)
+    val_dataset   = COCODataset(VAL_IMAGES,   VAL_CAPTIONS,   transform)
 
-    print(f"Train split size: {len(train_ds)} images")
-    print(f"Val split size:   {len(val_ds)} images")
+    print(f"Train split size: {len(train_dataset)} images")
+    print(f"Val split size:   {len(val_dataset)} images")
 
     # Build caches
-    build_cache(train_ds, "train")
-    build_cache(val_ds, "val")
+    build_cache(train_dataset, "train")
+    build_cache(val_dataset, "val")
 
     print("\nPreprocessing complete.")
