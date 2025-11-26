@@ -5,6 +5,7 @@ from torchvision import transforms
 import matplotlib.pyplot as plt
 from COCODataset import COCODataset
 from model import CLIPModel  # <-- your model file
+from transformers import CLIPTokenizer, CLIPTextModel
 import torch.nn.functional as F
 
 plot_file = 'loss.png'
@@ -27,6 +28,25 @@ def clip_loss(image_embeds, text_embeds, temperature=0.07):
 
     return (loss_i + loss_t) / 2
 
+def encode_caption_batch(captions):
+    """
+    captions: list of strings
+    returns: normalized tensor of shape (B, embed_dim)
+    """
+    tokens = tokenizer(
+        captions,
+        return_tensors="pt",
+        padding=True,
+        truncation=True,
+        max_length=tokenizer.model_max_length
+    ).to(device)
+
+    with torch.no_grad():
+        out = text_encoder(**tokens)
+        embeddings = out.last_hidden_state[:, 0, :]  # CLS token
+
+    embeddings = F.normalize(embeddings, dim=-1)
+    return embeddings
 
 def train_clip(
     coco_root="coco2014",
@@ -40,10 +60,14 @@ def train_clip(
     # ----------------------------------------------------
     # Load cached caption embeddings
     # ----------------------------------------------------
-    train_cache_path = os.path.join(cache_dir, "train_caption_embeddings.pt")
-    val_cache_path = os.path.join(cache_dir, "val_caption_embeddings.pt")
+    #train_cache_path = os.path.join(cache_dir, "train_caption_embeddings.pt")
+    #val_cache_path = os.path.join(cache_dir, "val_caption_embeddings.pt")
     #train_caption_cache = torch.load(train_cache_path)
     #val_caption_cache = torch.load(val_cache_path)
+
+    tokenizer = CLIPTokenizer.from_pretrained("openai/clip-vit-base-patch32")
+    text_encoder = CLIPTextModel.from_pretrained("openai/clip-vit-base-patch32").to(device)
+    text_encoder.eval()  # freeze weights, we only train image encoder
 
     # ----------------------------------------------------
     # Image preprocessing
@@ -70,14 +94,14 @@ def train_clip(
         img_dir=train_images,
         ann_file=train_caps,
         transform=transform,
-        caption_cache_path=train_cache_path   # <--- enables embedding mode
+        #caption_cache_path=train_cache_path   # <--- enables embedding mode
     )
 
     val_dataset = COCODataset(
         img_dir=val_images,
         ann_file=val_caps,
         transform=transform,
-        caption_cache_path=val_cache_path
+        #caption_cache_path=val_cache_path
     )
 
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
@@ -99,20 +123,26 @@ def train_clip(
         model.train()
         epoch_train_loss = 0.0
 
-        for images, text_embeds in train_loader:
+        for images, captions in train_loader:
             images = images.to(device)
 
-            if not isinstance(text_embeds, torch.Tensor):
+            '''if not isinstance(text_embeds, torch.Tensor):
                 text_embeds = torch.tensor(text_embeds, dtype=torch.float32)
-            text_embeds = text_embeds.to(device)
+            text_embeds = text_embeds.to(device)'''
+
+            # Compute text embeddings dynamically
+            text_embeds = encode_caption_batch(captions)
+
+            # Compute image embeddings
+            img_embeds, text_embeds = model(images, text_embeds)
 
             optimizer.zero_grad()
 
             # Get feature embeddings from your CLIP model
-            image_features, text_features = model(images, text_embeds)
+            #image_features, text_features = model(images, text_embeds)
 
             # Compute InfoNCE loss
-            loss = clip_loss(image_features, text_features)
+            loss = clip_loss(img_embeds, text_embeds)
 
             loss.backward()
             optimizer.step()
@@ -120,27 +150,27 @@ def train_clip(
             epoch_train_loss += loss.item()
 
         train_loss += [epoch_train_loss / len(train_loader)]
-        print(f"Epoch {epoch+1}/{epochs} | Loss: {train_loss:.4f}")
+
 
         model.eval()
         epoch_val_loss = 0.0
 
         with torch.no_grad():
-            for images, text_embeds in val_loader:
+            for images, captions in val_loader:
                 images = images.to(device)
 
-                if not isinstance(text_embeds, torch.Tensor):
-                    text_embeds = torch.tensor(text_embeds, dtype=torch.float32)
-                text_embeds = text_embeds.to(device)
+                text_embeds = encode_caption_batch(captions)
+                img_embeds, text_embeds = model(images, text_embeds)
 
-                image_features, text_features = model(images, text_embeds)
-                loss = clip_loss(image_features, text_features)
+                #image_features, text_features = model(images, text_embeds)
+                loss = clip_loss(img_embeds, text_embeds)
                 epoch_val_loss += loss.item()
 
         val_loss += [epoch_val_loss / len(val_loader)]
 
         scheduler.step()
 
+        print(f"Epoch {epoch+1}/{epochs} | Train Loss: {train_loss[-1]:.4f} | Val Loss: {val_loss[-1]:.4f}")
 
     if save_file != None:
         torch.save(model.state_dict(), save_file)
