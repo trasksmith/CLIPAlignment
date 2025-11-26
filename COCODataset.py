@@ -10,7 +10,7 @@ class COCODataset(Dataset):
         print("Loading COCO annotations...")
         self.coco = COCO(ann_file)
         print("COCO loaded. Number of images:", len(self.coco.imgs))
-        self.ids = list(self.coco.imgs.keys())
+        self.ids = list(self.coco.imgs.keys())[:5000]
         self.transform = transform
         print("Loading caption cache...")
         self.caption_cache = torch.load(caption_cache_path, map_location='cpu')
