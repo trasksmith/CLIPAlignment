@@ -11,6 +11,13 @@ import torch.nn.functional as F
 plot_file = 'loss.png'
 save_file = 'weights.pth'
 
+device = "cuda" if torch.cuda.is_available() else "cpu"
+
+tokenizer = CLIPTokenizer.from_pretrained("openai/clip-vit-base-patch32")
+text_encoder = CLIPTextModel.from_pretrained("openai/clip-vit-base-patch32").to(device)
+text_encoder.eval()  # freeze weights, we only train image encoder
+
+
 def clip_loss(image_embeds, text_embeds, temperature=0.07):
     # Normalize the embeddings
     image_embeds = F.normalize(image_embeds, dim=1)
@@ -55,7 +62,6 @@ def train_clip(
     lr=1e-4,
     epochs=10,
 ):
-    device = "cuda" if torch.cuda.is_available() else "cpu"
 
     # ----------------------------------------------------
     # Load cached caption embeddings
@@ -64,10 +70,6 @@ def train_clip(
     #val_cache_path = os.path.join(cache_dir, "val_caption_embeddings.pt")
     #train_caption_cache = torch.load(train_cache_path)
     #val_caption_cache = torch.load(val_cache_path)
-
-    tokenizer = CLIPTokenizer.from_pretrained("openai/clip-vit-base-patch32")
-    text_encoder = CLIPTextModel.from_pretrained("openai/clip-vit-base-patch32").to(device)
-    text_encoder.eval()  # freeze weights, we only train image encoder
 
     # ----------------------------------------------------
     # Image preprocessing
