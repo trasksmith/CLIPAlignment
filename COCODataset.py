@@ -7,10 +7,14 @@ from torch.utils.data import Dataset
 class COCODataset(Dataset):
     def __init__(self, img_dir, ann_file, transform=None, caption_cache_path=None):
         self.img_dir = img_dir
+        print("Loading COCO annotations...")
         self.coco = COCO(ann_file)
+        print("COCO loaded. Number of images:", len(self.coco.imgs))
         self.ids = list(self.coco.imgs.keys())
         self.transform = transform
-        self.caption_cache_path = caption_cache_path
+        print("Loading caption cache...")
+        self.caption_cache = torch.load(caption_cache_path, map_location='cpu')
+        print("Caption cache loaded.")
 
         # Only load caption cache if path is provided, but keep on CPU
         if caption_cache_path is not None:
